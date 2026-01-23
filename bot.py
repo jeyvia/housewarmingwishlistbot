@@ -21,9 +21,13 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # e.g., https://<YOUR_VM_IP>:8443
 
 if not BOT_TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN environment variable is not set")
+
+if not WEBHOOK_URL:
+    raise ValueError("WEBHOOK_URL environment variable is not set")
 
 DATA_FILE = "wishlist.json"
 ALLOWED_USERNAME = os.getenv("ALLOWED_USERNAME")
@@ -176,7 +180,14 @@ def main() -> None:
     application.add_handler(add_handler)
 
     logger.info("Bot started")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    application.run_webhook(
+        listen="0.0.0.0",
+        port=8443,
+        url_path=BOT_TOKEN,
+        webhook_url=f"{WEBHOOK_URL}/{BOT_TOKEN}",
+        cert="cert.pem",
+        key="private.key",
+    )
 
 
 if __name__ == "__main__":
