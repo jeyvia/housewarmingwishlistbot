@@ -26,9 +26,9 @@ if not BOT_TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN environment variable is not set")
 
 DATA_FILE = "wishlist.json"
-ALLOWED_USERNAME = "jeyvia"
-GROUP_ID = -1003611231661
-WISHLIST_TOPIC_ID = 17
+ALLOWED_USERNAME = os.getenv("ALLOWED_USERNAME")
+GROUP_ID = int(os.getenv("GROUP_ID"))
+WISHLIST_TOPIC_ID = int(os.getenv("WISHLIST_TOPIC_ID"))
 
 NAME, PRICE, LINK, REMARKS = range(4)
 
