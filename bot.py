@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+from typing import Optional, Tuple
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
     Application,
@@ -132,6 +133,10 @@ async def save_item(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         name=item["name"]
     )
 
+    item["topic_id"] = forum_topic.message_thread_id
+    item["contributions"] = []
+    save_wishlist(wishlist)
+
     topic_link = f"https://t.me/c/{str(GROUP_ID)[4:]}/{forum_topic.message_thread_id}"
 
     keyboard = [[InlineKeyboardButton("I'll chip in! 🙋‍♂️", url=topic_link)]]
@@ -156,6 +161,68 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return ConversationHandler.END
 
 
+def find_item_by_topic(topic_id: int) -> Tuple[list, Optional[dict], Optional[int]]:
+    """Find an item by its forum topic ID. Returns (wishlist, item, index)."""
+    wishlist = load_wishlist()
+    for i, item in enumerate(wishlist):
+        if item.get("topic_id") == topic_id:
+            return wishlist, item, i
+    return wishlist, None, None
+
+
+async def contribute(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /contribute <amount> in a forum topic."""
+    message = update.message
+    if message.chat_id != GROUP_ID or message.message_thread_id is None:
+        return
+
+    args = context.args
+    if not args or len(args) != 1:
+        await message.reply_text("Usage: /contribute <amount>")
+        return
+
+    try:
+        amount = float(args[0])
+        if amount <= 0:
+            raise ValueError
+    except ValueError:
+        await message.reply_text("Please provide a valid positive number.")
+        return
+
+    wishlist, item, idx = find_item_by_topic(message.message_thread_id)
+    if item is None:
+        await message.reply_text("No wishlist item found for this topic.")
+        return
+
+    username = update.effective_user.username or update.effective_user.first_name
+    contributions = item.get("contributions", [])
+
+    # Replace existing pledge from the same user
+    for contrib in contributions:
+        if contrib["user"] == username:
+            contrib["amount"] = amount
+            break
+    else:
+        contributions.append({"user": username, "amount": amount})
+
+    item["contributions"] = contributions
+    wishlist[idx] = item
+    save_wishlist(wishlist)
+
+    total = sum(c["amount"] for c in contributions)
+    try:
+        price = float(item["price"])
+        await message.reply_text(
+            f"Thanks @{username}! Pledged ${amount:.2f}.\n"
+            f"Total: ${total:.2f} / ${price:.2f}"
+        )
+    except (ValueError, TypeError):
+        await message.reply_text(
+            f"Thanks @{username}! Pledged ${amount:.2f}.\n"
+            f"Total: ${total:.2f} / {item['price']}"
+        )
+
+
 def main() -> None:
     """Start the bot."""
     application = Application.builder().token(BOT_TOKEN).build()
@@ -178,8 +245,14 @@ def main() -> None:
     )
 
     application.add_handler(add_handler)
+    application.add_handler(CommandHandler("contribute", contribute))
 
     logger.info("Bot started")
+
+    # --- Local polling mode (uncomment to run locally) ---
+    # application.run_polling(drop_pending_updates=True)
+
+    # --- Webhook mode (for production/VM) ---
     application.run_webhook(
         listen="0.0.0.0",
         port=8443,
