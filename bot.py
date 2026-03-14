@@ -137,6 +137,13 @@ async def save_item(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     item["contributions"] = []
     save_wishlist(wishlist)
 
+    await context.bot.send_message(
+        chat_id=GROUP_ID,
+        message_thread_id=forum_topic.message_thread_id,
+        text=message,
+        parse_mode="HTML",
+    )
+
     topic_link = f"https://t.me/c/{str(GROUP_ID)[4:]}/{forum_topic.message_thread_id}"
 
     keyboard = [[InlineKeyboardButton("I'll chip in! 🙋‍♂️", url=topic_link)]]
